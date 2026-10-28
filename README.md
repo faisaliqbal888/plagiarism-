@@ -1,157 +1,176 @@
-# HumanizeIt — AI Text Humanizer & Plagiarism Shield
+# HumanizeIt — AI Text Humanizer & Plagiarism Shield Backend
 
-A full-stack, enterprise-grade writing platform that transforms robotic, AI-generated drafts into natural, human-sounding prose with real-time AI likelihood scoring, Meaning-Lock semantic verification, and integrated plagiarism scanning.
+This is the production-ready Node.js & TypeScript backend for the **AI Text Humanizer & Plagiarism Shield** platform, built to the exact specifications outlined in [docs/Backend_README.md](file:///h:/plagiarism%20and%20ai%20detector/docs/Backend_README.md) and [docs/PRD_AI_Text_Humanizer.md](file:///h:/plagiarism%20and%20ai%20detector/docs/PRD_AI_Text_Humanizer.md).
 
 ---
 
-## 📁 Repository Structure
+## 🚀 Features
 
-```text
-plagiarism and ai detector/
-├── docs/                             # Product & architectural specifications
-│   ├── PRD_AI_Text_Humanizer.md      # Master Product Requirements Document (PRD)
-│   ├── FRONTEND_README.md            # Frontend Architecture & UI specifications
-│   └── Backend_README.md             # Backend Architecture, DB Schema & API spec
-├── frontend/                         # Next.js 14+ (App Router) Web Application
-│   ├── src/
-│   │   ├── app/                      # App router pages (Landing, Tool, Pricing, History, etc.)
-│   │   ├── components/               # UI components (Editor, Scores, Controls, Layout)
-│   │   ├── hooks/                    # Custom React hooks (useHumanize, usePlagiarism, useUsage)
-│   │   ├── lib/                      # API client, plan limits, analytics helpers
-│   │   ├── store/                    # Zustand state management
-│   │   └── types/                    # TypeScript interfaces
-│   ├── package.json
-│   ├── tailwind.config.ts
-│   └── tsconfig.json
-├── backend/                          # Express.js + TypeScript REST API Server
-│   ├── src/
-│   │   ├── config/                   # Environment & runtime configurations
-│   │   ├── controllers/              # Request handlers (rewrite, detect, plagiarism, etc.)
-│   │   ├── middleware/               # Auth, rate-limiting, and error handling
-│   │   ├── providers/                # LLM (Claude/OpenAI), Detector, Plagiarism adapters
-│   │   ├── routes/                   # v1 API endpoints
-│   │   └── server.ts                 # Server entry point
-│   ├── package.json
-│   └── tsconfig.json
-└── README.md                         # Main repository guide (This file)
+- **10-Step Rewrite Pipeline**:
+  1. *Validate & Reserve* — validates word caps and reserves quotas atomically.
+  2. *Protect Entities* — masks proper nouns, dates, numbers, citations, URLs into placeholders (`[[P1]]`, `[[P2]]`).
+  3. *Chunking* — splits documents into 300–500 word semantically coherent blocks.
+  4. *Style Analysis* — calculates average sentence length, passive voice frequency, and readability metrics.
+  5. *LLM Rewrite* — dispatches chunks to Claude/OpenAI adapters with editorial prompts (Light, Balanced, Strong modes).
+  6. *Restore Entities* — re-inserts protected entity placeholders back into the output without modification.
+  7. *Clean Up* — strips robotic transitions (*"Moreover"*, *"Furthermore"*, *"In conclusion"*), fixes punctuation and spacing.
+  8. *Quality Gates*:
+     - **Meaning-Lock Gate**: Computes cosine similarity of vector embeddings (original vs. rewritten). Auto-retries in Light mode if similarity < 0.85.
+     - **AI Score Gate**: Scans with the AI detector adapter. Retries up to 2 extra passes if AI probability remains high.
+  9. *Save Output* — persists document records, scan scores, and finished status to the database.
+  10. *Settle Usage* — finalizes token usage and quota counters.
+- **Dual-Mode Data Layer**: Seamlessly connects to PostgreSQL 16 (via connection pool) with an automated in-memory storage fallback for local development or disconnected testing.
+- **Full API Suite (14 Endpoints)**: Full implementation of all Humanize, Detection, Plagiarism, Sentence Rewrite, Citation, Voice Matching, File Upload, Document History, Auth, and Billing endpoints.
+- **Provider Adapters**: Modular, vendor-agnostic adapters with automatic simulation fallbacks when API keys are not supplied.
+- **Containerization**: Includes multi-stage production [Dockerfile](file:///h:/plagiarism%20and%20ai%20detector/backend/Dockerfile) and [docker-compose.yml](file:///h:/plagiarism%20and%20ai%20detector/backend/docker-compose.yml) spinning up PostgreSQL 16, Redis 7, and the backend server.
+- **Automated Verification**: Built-in 30-assertion integration test suite (`npm test`).
+
+---
+
+## 📁 Project Structure
+
+```
+backend/
+├── Dockerfile                  # Multi-stage production Docker build
+├── docker-compose.yml          # PostgreSQL 16 + Redis 7 + API stack
+├── package.json                # Dependencies and scripts
+├── tsconfig.json               # TypeScript compiler configuration
+├── test-suite.ts               # End-to-end integration test suite
+├── .env.example                # Sample environment configuration
+├── src/
+│   ├── server.ts               # Express application entry point
+│   ├── config/
+│   │   └── index.ts            # Environment variables & tier limit configurations
+│   ├── db/
+│   │   ├── index.ts            # PostgreSQL pool and connectivity health
+│   │   ├── migrate.ts          # Schema migrations for all 7 tables
+│   │   ├── repositories.ts     # Resilient dual-mode repository layer
+│   │   └── seed.ts             # Development database seed script
+│   ├── middleware/
+│   │   ├── auth.ts             # JWT authentication & guest cookie sessions
+│   │   ├── rateLimiter.ts      # Sliding window rate limiting & quota checks
+│   │   ├── validation.ts       # Zod request validation schemas
+│   │   └── index.ts            # Middleware barrel export
+│   ├── pipeline/
+│   │   ├── entities.ts         # Regex entity masking & placeholder restoration
+│   │   ├── prompts.ts          # Tone/mode system rewrite prompts
+│   │   ├── rewrite.ts          # Core 10-step background rewrite engine
+│   │   └── index.ts            # Pipeline barrel export
+│   ├── providers/
+│   │   ├── llm.ts              # Claude / OpenAI LLM adapter
+│   │   ├── detector.ts         # AI probability detector adapter
+│   │   ├── plagiarism.ts       # Plagiarism scan adapter
+│   │   ├── embedding.ts        # Vector embedding adapter
+│   │   └── index.ts            # Provider barrel export
+│   ├── routes/
+│   │   ├── auth.ts             # POST /register, /login, GET /me
+│   │   ├── humanize.ts         # POST /v1/humanize (asynchronous rewrite job)
+│   │   ├── jobs.ts             # GET /v1/jobs/:id (job status & result polling)
+│   │   ├── detect.ts           # POST /v1/detect (standalone AI likelihood score)
+│   │   ├── plagiarism.ts       # POST /v1/plagiarism (web similarity scan)
+│   │   ├── rewriteSentence.ts  # POST /v1/rewrite-sentence (in-context sentence)
+│   │   ├── citations.ts        # POST /v1/citations (APA, MLA, Chicago formatting)
+│   │   ├── usage.ts            # GET /v1/usage (word quota & tier information)
+│   │   ├── documents.ts        # GET /v1/documents, GET /:id, DELETE /:id
+│   │   ├── voiceProfile.ts     # POST & GET /v1/voice-profile (custom writing style)
+│   │   ├── uploads.ts          # POST /v1/uploads (.docx, .pdf, .txt extraction)
+│   │   ├── billing.ts          # POST /v1/billing/checkout, /portal, /webhooks
+│   │   ├── health.ts           # GET /health (service & dependency health)
+│   │   └── index.ts            # Routes barrel export
+│   ├── types/
+│   │   └── index.ts            # Shared TypeScript interfaces & types
+│   └── utils/
+│       └── index.ts            # Logger, word counter, cosine similarity, helpers
 ```
 
 ---
 
-## ✨ Key Platform Features
+## 🛠️ Getting Started
 
-- **Zero-Barrier Access:** Guests can paste drafts and get humanized output immediately with zero sign-up friction.
-- **Side-by-Side Canvas:** Split-screen layout displaying original text, real-time word counter, rewrite controls, and output.
-- **Dual AI Gauges:** Fast, lightweight SVG gauges showing Before vs After AI likelihood estimates.
-- **Meaning-Lock Verification:** Vector embedding checks ensure the rewrite preserves the original arguments and facts without semantic distortion (warns if drift exceeds 15%).
-- **Interactive Diff View:** Word-by-word visual comparison with green added words and strikethrough red removals.
-- **Sentence-Level Rewriting:** Soft-underlines high-probability AI sentences with one-click single-sentence rewriting.
-- **Plagiarism & Citation Helper:** Scans web & academic sources and generates instant citations in APA, MLA, and Chicago formats.
-- **Voice Match Studio:** Upload authentic writing samples (200–500 words) to clone unique personal sentence rhythms and vocabularies.
-- **Document History:** Review past revisions, compare before/after AI scores, and permanently delete records on demand.
-- **Flexible Subscription Plans:** Free/Guest tier, Pro Writer ($9.99), Unlimited Master ($19.99), and Team & Agency ($49.99).
-
----
-
-## 🚀 Quickstart & Local Setup
-
-### Prerequisites
-- **Node.js** v20+ (recommended v24)
-- **npm** or **pnpm**
-- **PostgreSQL** database (optional for backend persistence)
-- **Redis** server (optional for backend asynchronous job queuing)
-
----
-
-### 1. Frontend Setup (Next.js 14)
+### 1. Installation
 
 ```bash
-# Navigate to the frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-```
-
-The frontend will be live at: **`http://localhost:3000`**
-
-#### Frontend Environment Variables (`frontend/.env.local`)
-```env
-NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_POSTHOG_KEY=phc_demo_key_placeholder
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAdemo
-NEXT_PUBLIC_SENTRY_DSN=https://demo@sentry.io/123456
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_demo
-```
-*(If connecting to an external backend service, point `NEXT_PUBLIC_API_URL=http://localhost:5000/api`)*
-
----
-
-### 2. Backend Setup (Node.js / Express)
-
-```bash
-# Navigate to the backend directory
 cd backend
-
-# Install dependencies
 npm install
+```
 
-# Configure environment variables
-# Copy or edit backend/.env with your API keys and database credentials
+### 2. Configure Environment
 
-# Run database migrations (optional if PostgreSQL is connected)
-npm run migrate
+Copy `.env.example` to `.env`:
 
-# Start the backend development server
+```bash
+cp .env.example .env
+```
+
+Key environment variables:
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `PORT` | API server listen port | `4000` |
+| `NODE_ENV` | Environment mode (`development` or `production`) | `development` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/humanizer_db` |
+| `REDIS_URL` | Redis cache and queue connection | `redis://localhost:6379/0` |
+| `LLM_API_KEY` | Anthropic Claude or OpenAI API key | *(Simulated fallback if blank)* |
+| `DETECTOR_API_KEY` | AI Detection provider API key | *(Simulated fallback if blank)* |
+| `PLAGIARISM_API_KEY`| Plagiarism check provider API key | *(Simulated fallback if blank)* |
+| `AUTH_JWT_SECRET` | Secret key for signing authentication JWTs | `dev_secret_change_me` |
+
+### 3. Run Development Server
+
+```bash
 npm run dev
+```
 
-# Run automated integration tests
+The server boots on `http://localhost:4000`.
+
+### 4. Run Integration Tests
+
+```bash
 npm test
 ```
 
-The backend API runs at: **`http://localhost:4000`**
+Runs the 30-assertion test suite verifying all 14 API routes, job processing, and authentication flows.
 
-### 3. Docker Compose (Full Stack)
-
-To run PostgreSQL 16, Redis 7, and the Backend API together with a single command:
+### 5. Build for Production
 
 ```bash
-cd backend
+npm run build
+npm start
+```
+
+---
+
+## 🐳 Docker & Docker Compose
+
+To start PostgreSQL 16, Redis 7, and the Backend API together:
+
+```bash
 docker compose up -d --build
 ```
 
 ---
 
-## 📖 Detailed Documentation
+## 📡 API Endpoints Overview
 
-All detailed architectural documentation, specifications, and design requirements are located in the [`docs/`](./docs) directory:
-
-- 📄 [**Product Requirements Document (PRD)**](./docs/PRD_AI_Text_Humanizer.md) — Product vision, target personas, ethical positioning, and feature matrix.
-- 🎨 [**Frontend Specification**](./docs/FRONTEND_README.md) — Next.js architecture, component breakdown, design aesthetic, and state flows.
-- ⚙️ [**Backend Specification**](./docs/Backend_README.md) — API endpoints, database schema, rewrite pipeline, and third-party integrations.
-
----
-
-## ⚖️ Ethical Use & AI Detector Disclaimer
-
-1. **Estimate Only:** Detector scores (GPTZero, Turnitin, Copyleaks, etc.) are probabilistic estimates, not definitive proof of AI generation. HumanizeIt is an editing and writing improvement tool.
-2. **Academic Integrity:** Users remain solely responsible for adhering to their institutional, university, or employer policies regarding AI tools and proper source citations.
-3. **Zero Data Training Policy:** User text is processed transiently and is never used to train public foundation models.
-
----
-
-## 🛠️ Scripts Reference
-
-| Directory | Command | Action |
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| **`frontend/`** | `npm run dev` | Starts Next.js dev server on port `3000` |
-| **`frontend/`** | `npm run build` | Builds optimized production bundle |
-| **`frontend/`** | `npm run start` | Starts Next.js production server |
-| **`backend/`** | `npm run dev` | Starts Express server on port `4000` with hot-reloading |
-| **`backend/`** | `npm test` | Runs 30-assertion API integration test suite |
-| **`backend/`** | `npm run build` | Compiles TypeScript to `dist/` |
-| **`backend/`** | `npm run migrate` | Runs PostgreSQL database migrations |
-| **`backend/`** | `npm run seed` | Seeds database with development test accounts |
+| `GET` | `/health` | Server and dependency health check |
+| `POST` | `/v1/auth/register` | Register a new user account |
+| `POST` | `/v1/auth/login` | Authenticate and retrieve Bearer JWT |
+| `GET` | `/v1/auth/me` | Fetch authenticated user profile |
+| `POST` | `/v1/humanize` | Submit rewrite job (`text`, `mode`, `tone`) |
+| `GET` | `/v1/jobs/:id` | Poll job status (`queued`, `running`, `done`, `failed`) and result |
+| `POST` | `/v1/detect` | Standalone AI likelihood detection with sentence flags |
+| `POST` | `/v1/plagiarism` | Web plagiarism similarity scan |
+| `POST` | `/v1/rewrite-sentence` | In-context single sentence rewrite |
+| `POST` | `/v1/citations` | Generate APA, MLA, or Chicago academic citations |
+| `GET` | `/v1/usage` | Fetch word quota usage and reset schedules |
+| `GET` | `/v1/documents` | List document history |
+| `GET` | `/v1/documents/:id` | Fetch specific document with scan results |
+| `DELETE`| `/v1/documents/:id` | Delete document |
+| `POST` | `/v1/voice-profile` | Build custom style profile from text samples |
+| `GET` | `/v1/voice-profile` | List user voice profiles |
+| `POST` | `/v1/uploads` | Extract text from `.docx`, `.pdf`, or `.txt` files |
+| `POST` | `/v1/billing/checkout` | Create checkout session |
+| `POST` | `/v1/billing/portal` | Open customer billing portal |
+| `POST` | `/v1/webhooks/billing` | Ingest signed payment provider webhooks |
